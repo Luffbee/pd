@@ -349,16 +349,18 @@ type pendingInfluence struct {
 	op       *operator.Operator
 	from, to uint64
 	origin   Influence
+	future   futureLoad
 }
 
-func newPendingInfluence(op *operator.Operator, from, to uint64, infl Influence) *pendingInfluence {
+func newPendingInfluence(op *operator.Operator, from, to uint64, infl Influence, future futureLoad) *pendingInfluence {
 	return &pendingInfluence{
-		op, from, to, infl,
+		op, from, to, infl, future,
 	}
 }
 
-func summaryPendingInfluence(pendings map[*pendingInfluence]struct{}, f func(*operator.Operator) float64) map[uint64]Influence {
+func summaryPendingInfluence(pendings map[*pendingInfluence]struct{}, f func(*operator.Operator) float64) (map[uint64]Influence, futureLoadSummary) {
 	ret := map[uint64]Influence{}
+	future := futureLoadSummary{}
 	for p := range pendings {
 		w := f(p.op)
 		if w == 0 {
@@ -366,6 +368,63 @@ func summaryPendingInfluence(pendings map[*pendingInfluence]struct{}, f func(*op
 		}
 		ret[p.to] = ret[p.to].add(&p.origin, w)
 		ret[p.from] = ret[p.from].add(&p.origin, -w)
+		future.update(&p.future)
 	}
+	return ret, future
+}
+
+type storeLoad struct {
+	ByteRate float64
+}
+
+func (sl *storeLoad) setMin(rhs *storeLoad) storeLoad {
+	ret := *sl
+	ret.ByteRate = math.Min(sl.ByteRate, rhs.ByteRate)
 	return ret
+}
+
+func (sl *storeLoad) setMax(rhs *storeLoad) storeLoad {
+	ret := *sl
+	ret.ByteRate = math.Max(sl.ByteRate, rhs.ByteRate)
+	return ret
+}
+
+type futureLoad struct {
+	loads map[uint64]storeLoad
+}
+
+func (fl *futureLoad) updateMin(rhs *futureLoad) {
+	if fl.loads == nil {
+		fl.loads = make(map[uint64]storeLoad, len(rhs.loads))
+	}
+	for id, newLoad := range rhs.loads {
+		if oldLoad, ok := fl.loads[id]; ok {
+			fl.loads[id] = oldLoad.setMin(&newLoad)
+		} else {
+			fl.loads[id] = newLoad
+		}
+	}
+}
+
+func (fl *futureLoad) updateMax(rhs *futureLoad) {
+	if fl.loads == nil {
+		fl.loads = make(map[uint64]storeLoad, len(rhs.loads))
+	}
+	for id, newLoad := range rhs.loads {
+		if oldLoad, ok := fl.loads[id]; ok {
+			fl.loads[id] = oldLoad.setMax(&newLoad)
+		} else {
+			fl.loads[id] = newLoad
+		}
+	}
+}
+
+type futureLoadSummary struct {
+	min futureLoad
+	max futureLoad
+}
+
+func (fsl *futureLoadSummary) update(sl *futureLoad) {
+	fsl.min.updateMin(sl)
+	fsl.max.updateMax(sl)
 }
