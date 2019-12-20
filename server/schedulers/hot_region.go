@@ -62,7 +62,7 @@ const (
 	// HotWriteRegionType is hot write region scheduler type.
 	HotWriteRegionType               = "hot-write-region"
 	minFlowBytes                     = 128 * 1024
-	maxZombieDur       time.Duration = statistics.StoreHeartBeatReportInterval * time.Second
+	maxZombieDur       time.Duration = 2 * statistics.StoreHeartBeatReportInterval * time.Second
 )
 
 // BalanceType : the perspective of balance
@@ -608,24 +608,40 @@ func (h *balanceHotRegionsScheduler) GetHotWriteStatus() *statistics.StoreHotPee
 	}
 }
 
-func (h *balanceHotRegionsScheduler) GetWritePendingInfluence() map[uint64]Influence {
+func (h *balanceHotRegionsScheduler) GetWritePendingInfluence() (map[uint64]Influence, map[uint64]Influence, map[uint64]Influence) {
 	h.RLock()
 	defer h.RUnlock()
-	ret := make(map[uint64]Influence, len(h.writePendingSum))
+	ret1 := make(map[uint64]Influence, len(h.writePendingSum))
 	for id, infl := range h.writePendingSum {
-		ret[id] = infl
+		ret1[id] = infl
 	}
-	return ret
+	ret2 := make(map[uint64]Influence, len(h.writeFutureLoad.min.loads))
+	for id, load := range h.writeFutureLoad.min.loads {
+		ret2[id] = Influence{ByteRate: load.ByteRate}
+	}
+	ret3 := make(map[uint64]Influence, len(h.writeFutureLoad.max.loads))
+	for id, load := range h.writeFutureLoad.max.loads {
+		ret3[id] = Influence{ByteRate: load.ByteRate}
+	}
+	return ret1, ret2, ret3
 }
 
-func (h *balanceHotRegionsScheduler) GetReadPendingInfluence() map[uint64]Influence {
+func (h *balanceHotRegionsScheduler) GetReadPendingInfluence() (map[uint64]Influence, map[uint64]Influence, map[uint64]Influence) {
 	h.RLock()
 	defer h.RUnlock()
-	ret := make(map[uint64]Influence, len(h.readPendingSum))
+	ret1 := make(map[uint64]Influence, len(h.readPendingSum))
 	for id, infl := range h.readPendingSum {
-		ret[id] = infl
+		ret1[id] = infl
 	}
-	return ret
+	ret2 := make(map[uint64]Influence, len(h.readFutureLoad.min.loads))
+	for id, load := range h.readFutureLoad.min.loads {
+		ret2[id] = Influence{ByteRate: load.ByteRate}
+	}
+	ret3 := make(map[uint64]Influence, len(h.readFutureLoad.max.loads))
+	for id, load := range h.readFutureLoad.max.loads {
+		ret3[id] = Influence{ByteRate: load.ByteRate}
+	}
+	return ret1, ret2, ret3
 }
 
 func (h *balanceHotRegionsScheduler) GetStoresScore() map[uint64]float64 {

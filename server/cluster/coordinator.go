@@ -329,8 +329,8 @@ func (c *coordinator) stop() {
 type hasHotStatus interface {
 	GetHotReadStatus() *statistics.StoreHotPeersInfos
 	GetHotWriteStatus() *statistics.StoreHotPeersInfos
-	GetWritePendingInfluence() map[uint64]schedulers.Influence
-	GetReadPendingInfluence() map[uint64]schedulers.Influence
+	GetWritePendingInfluence() (map[uint64]schedulers.Influence, map[uint64]schedulers.Influence, map[uint64]schedulers.Influence)
+	GetReadPendingInfluence() (map[uint64]schedulers.Influence, map[uint64]schedulers.Influence, map[uint64]schedulers.Influence)
 	GetStoresScore() map[uint64]float64
 }
 
@@ -393,53 +393,65 @@ func (c *coordinator) collectHotSpotMetrics() {
 		return
 	}
 	stores := c.cluster.GetStores()
-	status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
-	pendings := s.Scheduler.(hasHotStatus).GetWritePendingInfluence()
-	for _, s := range stores {
-		storeAddress := s.GetAddress()
-		storeID := s.GetID()
-		storeLabel := fmt.Sprintf("%d", storeID)
-		stat, ok := status.AsPeer[storeID]
-		if ok {
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_peer").Set(stat.TotalBytesRate)
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_peer").Set(float64(stat.Count))
-		} else {
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_peer").Set(0)
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_peer").Set(0)
-		}
+	{
+		status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
+		pendings, min, max := s.Scheduler.(hasHotStatus).GetWritePendingInfluence()
+		for _, s := range stores {
+			storeAddress := s.GetAddress()
+			storeID := s.GetID()
+			storeLabel := fmt.Sprintf("%d", storeID)
+			stat, ok := status.AsPeer[storeID]
+			if ok {
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_peer").Set(stat.TotalBytesRate)
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_peer").Set(float64(stat.Count))
+			} else {
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_peer").Set(0)
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_peer").Set(0)
+			}
 
-		stat, ok = status.AsLeader[storeID]
-		if ok {
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_leader").Set(stat.TotalBytesRate)
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_leader").Set(float64(stat.Count))
-		} else {
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_leader").Set(0)
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_leader").Set(0)
-		}
+			stat, ok = status.AsLeader[storeID]
+			if ok {
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_leader").Set(stat.TotalBytesRate)
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_leader").Set(float64(stat.Count))
+			} else {
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_leader").Set(0)
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_leader").Set(0)
+			}
 
-		infl := pendings[storeID]
-		// TODO: add to tidb-ansible after merging pending influence into operator influence.
-		hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_pending_influence_byte_rate").Set(infl.ByteRate)
+			infl := pendings[storeID]
+			// TODO: add to tidb-ansible after merging pending influence into operator influence.
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_pending_influence_byte_rate").Set(infl.ByteRate)
+			futureMin := min[storeID]
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_future_min_byte_rate").Set(futureMin.ByteRate)
+			futureMax := max[storeID]
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_future_max_byte_rate").Set(futureMax.ByteRate)
+		}
 	}
 
 	// Collects hot read region metrics.
-	status = s.Scheduler.(hasHotStatus).GetHotReadStatus()
-	pendings = s.Scheduler.(hasHotStatus).GetReadPendingInfluence()
-	for _, s := range stores {
-		storeAddress := s.GetAddress()
-		storeID := s.GetID()
-		storeLabel := fmt.Sprintf("%d", storeID)
-		stat, ok := status.AsLeader[storeID]
-		if ok {
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_read_bytes_as_leader").Set(stat.TotalBytesRate)
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_read_region_as_leader").Set(float64(stat.Count))
-		} else {
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_read_bytes_as_leader").Set(0)
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_read_region_as_leader").Set(0)
-		}
+	{
+		status := s.Scheduler.(hasHotStatus).GetHotReadStatus()
+		pendings, min, max := s.Scheduler.(hasHotStatus).GetReadPendingInfluence()
+		for _, s := range stores {
+			storeAddress := s.GetAddress()
+			storeID := s.GetID()
+			storeLabel := fmt.Sprintf("%d", storeID)
+			stat, ok := status.AsLeader[storeID]
+			if ok {
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_read_bytes_as_leader").Set(stat.TotalBytesRate)
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_read_region_as_leader").Set(float64(stat.Count))
+			} else {
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_read_bytes_as_leader").Set(0)
+				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_read_region_as_leader").Set(0)
+			}
 
-		infl := pendings[storeID]
-		hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_pending_influence_byte_rate").Set(infl.ByteRate)
+			infl := pendings[storeID]
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_pending_influence_byte_rate").Set(infl.ByteRate)
+			futureMin := min[storeID]
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_future_min_byte_rate").Set(futureMin.ByteRate)
+			futureMax := max[storeID]
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_future_max_byte_rate").Set(futureMax.ByteRate)
+		}
 	}
 
 	// Collects score of stores stats metrics.
