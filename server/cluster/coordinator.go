@@ -392,6 +392,12 @@ func (c *coordinator) collectHotSpotMetrics() {
 	if !ok {
 		return
 	}
+	getDefault := func(m map[uint64]schedulers.Influence, id uint64, or float64) float64 {
+		if inf, ok := m[id]; ok {
+			return inf.ByteRate
+		}
+		return or
+	}
 	stores := c.cluster.GetStores()
 	{
 		status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
@@ -401,9 +407,11 @@ func (c *coordinator) collectHotSpotMetrics() {
 			storeID := s.GetID()
 			storeLabel := fmt.Sprintf("%d", storeID)
 			stat, ok := status.AsPeer[storeID]
+			cur := 0.0
 			if ok {
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_peer").Set(stat.TotalBytesRate)
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_peer").Set(float64(stat.Count))
+				cur = stat.TotalBytesRate
 			} else {
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_written_bytes_as_peer").Set(0)
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_write_region_as_peer").Set(0)
@@ -421,10 +429,10 @@ func (c *coordinator) collectHotSpotMetrics() {
 			infl := pendings[storeID]
 			// TODO: add to tidb-ansible after merging pending influence into operator influence.
 			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_pending_influence_byte_rate").Set(infl.ByteRate)
-			futureMin := min[storeID]
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_future_min_byte_rate").Set(futureMin.ByteRate)
-			futureMax := max[storeID]
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_future_max_byte_rate").Set(futureMax.ByteRate)
+			futureMin := getDefault(min, storeID, cur)
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_future_min_byte_rate").Set(futureMin)
+			futureMax := getDefault(max, storeID, cur)
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "write_future_max_byte_rate").Set(futureMax)
 		}
 	}
 
@@ -437,9 +445,11 @@ func (c *coordinator) collectHotSpotMetrics() {
 			storeID := s.GetID()
 			storeLabel := fmt.Sprintf("%d", storeID)
 			stat, ok := status.AsLeader[storeID]
+			cur := 0.0
 			if ok {
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_read_bytes_as_leader").Set(stat.TotalBytesRate)
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_read_region_as_leader").Set(float64(stat.Count))
+				cur = stat.TotalBytesRate
 			} else {
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "total_read_bytes_as_leader").Set(0)
 				hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "hot_read_region_as_leader").Set(0)
@@ -447,10 +457,10 @@ func (c *coordinator) collectHotSpotMetrics() {
 
 			infl := pendings[storeID]
 			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_pending_influence_byte_rate").Set(infl.ByteRate)
-			futureMin := min[storeID]
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_future_min_byte_rate").Set(futureMin.ByteRate)
-			futureMax := max[storeID]
-			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_future_max_byte_rate").Set(futureMax.ByteRate)
+			futureMin := getDefault(min, storeID, cur)
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_future_min_byte_rate").Set(futureMin)
+			futureMax := getDefault(max, storeID, cur)
+			hotSpotStatusGauge.WithLabelValues(storeAddress, storeLabel, "read_future_max_byte_rate").Set(futureMax)
 		}
 	}
 

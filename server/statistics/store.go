@@ -269,7 +269,7 @@ type RollingStoreStats struct {
 	totalBytesDiskWriteRate MovingAvg
 }
 
-const storeStatsRollingWindows = 3
+const storeStatsRollingWindows = 1
 
 // NewRollingStoreStats creates a RollingStoreStats.
 func newRollingStoreStats() *RollingStoreStats {

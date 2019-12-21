@@ -62,7 +62,7 @@ const (
 	// HotWriteRegionType is hot write region scheduler type.
 	HotWriteRegionType               = "hot-write-region"
 	minFlowBytes                     = 128 * 1024
-	maxZombieDur       time.Duration = 2 * statistics.StoreHeartBeatReportInterval * time.Second
+	maxZombieDur       time.Duration = 2.5 * statistics.StoreHeartBeatReportInterval * time.Second
 )
 
 // BalanceType : the perspective of balance
