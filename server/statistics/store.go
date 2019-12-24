@@ -17,7 +17,9 @@ import (
 	"sync"
 
 	"github.com/pingcap/kvproto/pkg/pdpb"
+	"github.com/pingcap/log"
 	"github.com/pingcap/pd/server/core"
+	"go.uber.org/zap"
 )
 
 const (
@@ -301,6 +303,7 @@ func (r *RollingStoreStats) Observe(stats *pdpb.StoreStats) {
 	}
 	r.Lock()
 	defer r.Unlock()
+	log.Info("#####observe store", zap.Uint64("store", stats.StoreId), zap.Uint64("interval", interval), zap.Uint64("written", stats.BytesWritten), zap.Float64("rate", float64(stats.BytesWritten)/float64(interval)))
 	r.bytesWriteRate.Add(float64(stats.BytesWritten) / float64(interval))
 	r.bytesReadRate.Add(float64(stats.BytesRead) / float64(interval))
 	r.keysWriteRate.Add(float64(stats.KeysWritten) / float64(interval))
