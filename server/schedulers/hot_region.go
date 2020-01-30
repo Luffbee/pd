@@ -476,11 +476,7 @@ func (bs *balanceSolver) selectSrcStoreID() uint64 {
 	case movePeer:
 		id = selectSrcStoreByByteRate(bs.stLoadDetail)
 	case transferLeader:
-		if bs.rwTy == write {
-			id = selectSrcStoreByCount(bs.stLoadDetail)
-		} else {
-			id = selectSrcStoreByByteRate(bs.stLoadDetail)
-		}
+		id = selectSrcStoreByByteRate(bs.stLoadDetail)
 	}
 	if id != 0 && bs.cluster.GetStore(id) == nil {
 		log.Error("failed to get the source store", zap.Uint64("store-id", id))
@@ -610,9 +606,6 @@ func (bs *balanceSolver) selectDstStoreID(candidateIDs map[uint64]struct{}) uint
 	case movePeer:
 		return selectDstStoreByByteRate(candidateLoadDetail, bs.srcPeerStat.GetBytesRate(), bs.stLoadDetail[bs.srcStoreID])
 	case transferLeader:
-		if bs.rwTy == write {
-			return selectDstStoreByCount(candidateLoadDetail, bs.srcPeerStat.GetBytesRate(), bs.stLoadDetail[bs.srcStoreID])
-		}
 		return selectDstStoreByByteRate(candidateLoadDetail, bs.srcPeerStat.GetBytesRate(), bs.stLoadDetail[bs.srcStoreID])
 	default:
 		return 0
@@ -687,23 +680,6 @@ func sortStores(loadDetail map[uint64]*storeLoadDetail, better func(lp1, lp2 *st
 	return ids
 }
 
-// Prefer store with larger `count`.
-func selectSrcStoreByCount(loadDetail map[uint64]*storeLoadDetail) uint64 {
-	stores := sortStores(loadDetail, func(lp1, lp2 *storeLoadPred) bool {
-		ld1, ld2 := lp1.min(), lp2.min()
-		if ld1.Count > ld2.Count ||
-			(ld1.Count == ld2.Count && ld1.ByteRate > ld2.ByteRate) {
-			return true
-		}
-		return false
-	})
-
-	if len(stores) > 0 && loadDetail[stores[0]].LoadPred.Current.Count > 1 {
-		return stores[0]
-	}
-	return 0
-}
-
 // Prefer store with larger `byteRate`.
 func selectSrcStoreByByteRate(loadDetail map[uint64]*storeLoadDetail) uint64 {
 	stores := sortStores(loadDetail, func(lp1, lp2 *storeLoadPred) bool {
@@ -717,28 +693,6 @@ func selectSrcStoreByByteRate(loadDetail map[uint64]*storeLoadDetail) uint64 {
 
 	for _, id := range stores {
 		if loadDetail[id].LoadPred.Current.Count > 1 {
-			return id
-		}
-	}
-	return 0
-}
-
-// Prefer store with smaller `count`.
-func selectDstStoreByCount(candidates map[uint64]*storeLoadDetail, regionBytesRate float64, srcLoadDetail *storeLoadDetail) uint64 {
-	stores := sortStores(candidates, func(lp1, lp2 *storeLoadPred) bool {
-		ld1, ld2 := lp1.max(), lp2.max()
-		if ld1.Count < ld2.Count ||
-			(ld1.Count == ld2.Count && ld1.ByteRate < ld2.ByteRate) {
-			return true
-		}
-		return false
-	})
-
-	srcLoad := srcLoadDetail.LoadPred.min()
-	for _, id := range stores {
-		dstLoad := candidates[id].LoadPred.max()
-		if srcLoad.Count-1 >= dstLoad.Count+1 &&
-			srcLoad.ByteRate*hotRegionScheduleFactor > dstLoad.ByteRate+regionBytesRate {
 			return id
 		}
 	}
