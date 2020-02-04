@@ -219,26 +219,6 @@ func (load *storeLoad) ToLoadPred(infl Influence) *storeLoadPred {
 	}
 }
 
-type storeLoadCmp func(ld1, ld2 *storeLoad) int
-
-func sliceCmp(cmps ...storeLoadCmp) storeLoadCmp {
-	return func(ld1, ld2 *storeLoad) int {
-		for _, cmp := range cmps {
-			r := cmp(ld1, ld2)
-			if r != 0 {
-				return r
-			}
-		}
-		return 0
-	}
-}
-
-func neg(cmp storeLoadCmp) storeLoadCmp {
-	return func(ld1, ld2 *storeLoad) int {
-		return -cmp(ld1, ld2)
-	}
-}
-
 func byteRateRankCmp(ld1, ld2 *storeLoad) int {
 	rk1, rk2 := ld1.ByteRateRank(), ld2.ByteRateRank()
 	if rk1 < rk2 {
@@ -264,23 +244,31 @@ type storeLoadPred struct {
 	Future  storeLoad
 }
 
-func (lp *storeLoadPred) min() storeLoad {
+func (lp *storeLoadPred) min() *storeLoad {
 	return min(&lp.Current, &lp.Future)
 }
 
-func (lp *storeLoadPred) max() storeLoad {
+func (lp *storeLoadPred) max() *storeLoad {
 	return max(&lp.Current, &lp.Future)
 }
 
-func min(a, b *storeLoad) storeLoad {
-	return storeLoad{
+func (lp *storeLoadPred) diff() *storeLoad {
+	mx, mn := lp.max(), lp.min()
+	return &storeLoad{
+		ByteRate: mx.ByteRate - mn.ByteRate,
+		Count:    mx.Count - mn.Count,
+	}
+}
+
+func min(a, b *storeLoad) *storeLoad {
+	return &storeLoad{
 		ByteRate: math.Min(a.ByteRate, b.ByteRate),
 		Count:    minInt(a.Count, b.Count),
 	}
 }
 
-func max(a, b *storeLoad) storeLoad {
-	return storeLoad{
+func max(a, b *storeLoad) *storeLoad {
+	return &storeLoad{
 		ByteRate: math.Max(a.ByteRate, b.ByteRate),
 		Count:    maxInt(a.Count, b.Count),
 	}

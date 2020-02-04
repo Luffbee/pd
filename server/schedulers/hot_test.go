@@ -439,14 +439,14 @@ func (s *testHotReadRegionSchedulerSuite) TestSchedule(c *C) {
 
 	//| store_id | read_bytes_rate |
 	//|----------|-----------------|
-	//|    1     |       6MB       |
+	//|    1     |       6MB     |
 	//|    2     |       5.5MB     |
-	//|    3     |       6MB       |
+	//|    3     |       5.9MB       |
 	//|    4     |       3.1MB     |
 	//|    5     |       3MB       |
 	tc.UpdateStorageReadBytes(1, 6*MB*statistics.StoreHeartBeatReportInterval)
 	tc.UpdateStorageReadBytes(2, 5.5*MB*statistics.StoreHeartBeatReportInterval)
-	tc.UpdateStorageReadBytes(3, 6*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageReadBytes(3, 5.9*MB*statistics.StoreHeartBeatReportInterval)
 	tc.UpdateStorageReadBytes(4, 3.1*MB*statistics.StoreHeartBeatReportInterval)
 	tc.UpdateStorageReadBytes(5, 3*MB*statistics.StoreHeartBeatReportInterval)
 
@@ -462,11 +462,6 @@ func (s *testHotReadRegionSchedulerSuite) TestSchedule(c *C) {
 	tc.AddLeaderRegionWithReadInfo(5, 4, 512*KB*statistics.RegionHeartBeatReportInterval, statistics.RegionHeartBeatReportInterval, 2, 5)
 
 	// We will move leader peer of region 1 from 1 to 5
-	// Store 1 will be selected as source store (max rate, count > store 3 count).
-	// When trying to transfer leader:
-	//   Store 2 and store 3 are also hot, failed.
-	// Trying to move leader peer:
-	//   Store 5 is selected as destination because of less hot region count.
 	testutil.CheckTransferPeerWithLeaderTransfer(c, hb.Schedule(tc)[0], operator.OpHotRegion, 1, 5)
 	hb.(*hotScheduler).clearPendingInfluence()
 
@@ -534,8 +529,8 @@ func (s *testHotReadRegionSchedulerSuite) TestWithPendingInfluence(c *C) {
 		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
 
 		op3 := hb.Schedule(tc)[0]
-		testutil.CheckTransferPeerWithLeaderTransfer(c, op3, operator.OpHotRegion, 1, 4)
-		// store byte rate (min, max): (5.6, 7.1) | 6.1 | (6, 6.5) | (5, 6)
+		testutil.CheckTransferPeerWithLeaderTransfer(c, op3, operator.OpHotRegion, 2, 4)
+		// store byte rate (min, max): (6.1, 7.1) | (5.6, 6.1) | (6, 6.5) | (5, 6)
 
 		ops := hb.Schedule(tc)
 		c.Assert(ops, HasLen, 0)
@@ -565,8 +560,8 @@ func (s *testHotReadRegionSchedulerSuite) TestWithPendingInfluence(c *C) {
 		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
 
 		op4 := hb.Schedule(tc)[0]
-		testutil.CheckTransferPeerWithLeaderTransfer(c, op4, operator.OpHotRegion, 1, 4)
-		// store byte rate (min, max): (5.6, 7.1) | 6.1 | (6, 6.5) | (5, 6.0)
+		testutil.CheckTransferPeerWithLeaderTransfer(c, op4, operator.OpHotRegion, 2, 4)
+		// store byte rate (min, max): (6.1, 7.1) | (5.6, 6.1) | (6, 6.5) | (5, 6.0)
 
 		ops := hb.Schedule(tc)
 		c.Assert(ops, HasLen, 0)
