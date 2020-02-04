@@ -14,6 +14,7 @@
 package schedulers
 
 import (
+	"math"
 	"math/rand"
 	"sort"
 	"sync"
@@ -60,7 +61,7 @@ const (
 	HotWriteRegionType = "hot-write-region"
 
 	hotRegionLimitFactor    = 0.75
-	hotRegionScheduleFactor = 0.95
+	hotRegionScheduleFactor = 0.1
 
 	maxZombieDur time.Duration = statistics.StoreHeartBeatReportInterval * time.Second
 
@@ -518,9 +519,9 @@ func (bs *balanceSolver) filterSrcStores() map[uint64]*storeLoadDetail {
 func (bs *balanceSolver) sortSrcStoreIDs(loadDetail map[uint64]*storeLoadDetail) []uint64 {
 	var cmp storeLoadCmp
 	if bs.opTy == transferLeader && bs.rwTy == write {
-		cmp = neg(sliceCmp(countCmp, byteRateCmp))
+		cmp = neg(sliceCmp(countCmp, byteRateRankCmp))
 	} else {
-		cmp = neg(sliceCmp(byteRateCmp, countCmp))
+		cmp = neg(sliceCmp(byteRateRankCmp, countCmp))
 	}
 	return sortSrcStores(loadDetail, cmp)
 }
@@ -640,7 +641,8 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 					continue
 				}
 			} else {
-				if srcLd.ByteRate*hotRegionScheduleFactor < dstLd.ByteRate+bs.cur.srcPeerStat.GetBytesRate() {
+				minDec := math.Max(bs.cur.srcPeerStat.GetBytesRate()*hotRegionScheduleFactor, storeLoadByteRateRankSize)
+				if srcLd.ByteRate-minDec < dstLd.ByteRate+bs.cur.srcPeerStat.GetBytesRate() {
 					continue
 				}
 			}
@@ -653,9 +655,9 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 func (bs *balanceSolver) sortDstStoreIDs(loadDetail map[uint64]*storeLoadDetail) []uint64 {
 	var cmp storeLoadCmp
 	if bs.opTy == transferLeader && bs.rwTy == write {
-		cmp = sliceCmp(countCmp, byteRateCmp)
+		cmp = sliceCmp(countCmp, byteRateRankCmp)
 	} else {
-		cmp = sliceCmp(byteRateCmp, countCmp)
+		cmp = sliceCmp(byteRateRankCmp, countCmp)
 	}
 	return sortDstStores(loadDetail, cmp)
 }

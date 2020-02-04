@@ -524,25 +524,50 @@ func (s *testHotReadRegionSchedulerSuite) TestWithPendingInfluence(c *C) {
 
 	for i := 0; i < 20; i++ {
 		hb.(*hotScheduler).clearPendingInfluence()
+
 		op1 := hb.Schedule(tc)[0]
 		testutil.CheckTransferLeader(c, op1, operator.OpLeader, 1, 3)
+		// store byte rate (min, max): (6.6, 7.1) | 6.1 | (6, 6.5) | 5
+
 		op2 := hb.Schedule(tc)[0]
 		testutil.CheckTransferPeerWithLeaderTransfer(c, op2, operator.OpHotRegion, 1, 4)
+		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
+
+		op3 := hb.Schedule(tc)[0]
+		testutil.CheckTransferPeerWithLeaderTransfer(c, op3, operator.OpHotRegion, 1, 4)
+		// store byte rate (min, max): (5.6, 7.1) | 6.1 | (6, 6.5) | (5, 6)
+
 		ops := hb.Schedule(tc)
 		c.Assert(ops, HasLen, 0)
 	}
 	for i := 0; i < 20; i++ {
 		hb.(*hotScheduler).clearPendingInfluence()
+
 		op1 := hb.Schedule(tc)[0]
 		testutil.CheckTransferLeader(c, op1, operator.OpLeader, 1, 3)
+		// store byte rate (min, max): (6.6, 7.1) | 6.1 | (6, 6.5) | 5
+
 		op2 := hb.Schedule(tc)[0]
 		testutil.CheckTransferPeerWithLeaderTransfer(c, op2, operator.OpHotRegion, 1, 4)
+		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
 		c.Assert(op2.Cancel(), IsTrue)
+		// store byte rate (min, max): (6.6, 7.1) | 6.1 | (6, 6.5) | 5
+
 		op2 = hb.Schedule(tc)[0]
 		testutil.CheckTransferPeerWithLeaderTransfer(c, op2, operator.OpHotRegion, 1, 4)
+		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
+
 		c.Assert(op1.Cancel(), IsTrue)
+		// store byte rate (min, max): (6.5, 7.1) | 6.1 | 6 | (5, 5.5)
+
 		op3 := hb.Schedule(tc)[0]
-		testutil.CheckTransferPeerWithLeaderTransfer(c, op3, operator.OpHotRegion, 1, 4)
+		testutil.CheckTransferLeader(c, op3, operator.OpLeader, 1, 3)
+		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
+
+		op4 := hb.Schedule(tc)[0]
+		testutil.CheckTransferPeerWithLeaderTransfer(c, op4, operator.OpHotRegion, 1, 4)
+		// store byte rate (min, max): (5.6, 7.1) | 6.1 | (6, 6.5) | (5, 6.0)
+
 		ops := hb.Schedule(tc)
 		c.Assert(ops, HasLen, 0)
 	}
