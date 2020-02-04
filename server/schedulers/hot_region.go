@@ -385,9 +385,7 @@ type balanceSolver struct {
 	rwTy         rwType
 	opTy         opType
 
-	cur  *solution
-	best *solution
-	ops  []*operator.Operator
+	cur *solution
 }
 
 type solution struct {
@@ -459,8 +457,8 @@ func (bs *balanceSolver) solve() []*operator.Operator {
 		return nil
 	}
 	bs.cur = &solution{}
-	bs.best = nil
-	bs.ops = nil
+	var best *solution = nil
+	var ops []*operator.Operator = nil
 
 	srcStores := bs.sortSrcStoreIDs(bs.filterSrcStores())
 	for _, srcStoreID := range srcStores {
@@ -477,17 +475,17 @@ func (bs *balanceSolver) solve() []*operator.Operator {
 			for _, dstStoreID := range dstStores {
 				bs.cur.dstStoreID = dstStoreID
 
-				if bs.betterSolution() {
-					if ops := bs.buildOperators(); len(ops) > 0 {
-						bs.ops = ops
+				if bs.betterThan(best) {
+					if newOps := bs.buildOperators(); len(newOps) > 0 {
+						ops = newOps
 						clone := *bs.cur
-						bs.best = &clone
+						best = &clone
 					}
 				}
 			}
 		}
 	}
-	return bs.ops
+	return ops
 }
 
 func (bs *balanceSolver) allowBalance() bool {
@@ -663,8 +661,8 @@ func (bs *balanceSolver) sortDstStoreIDs(loadDetail map[uint64]*storeLoadDetail)
 }
 
 // betterSolution returns true if `bs.cur` is a betterSolution solution than `bs.best`.
-func (bs *balanceSolver) betterSolution() bool {
-	return bs.best == nil
+func (bs *balanceSolver) betterThan(old *solution) bool {
+	return old == nil
 }
 
 func (bs *balanceSolver) isReadyToBuild() bool {
