@@ -528,10 +528,6 @@ func (s *testHotReadRegionSchedulerSuite) TestWithPendingInfluence(c *C) {
 		testutil.CheckTransferPeerWithLeaderTransfer(c, op2, operator.OpHotRegion, 1, 4)
 		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
 
-		op3 := hb.Schedule(tc)[0]
-		testutil.CheckTransferPeerWithLeaderTransfer(c, op3, operator.OpHotRegion, 2, 4)
-		// store byte rate (min, max): (6.1, 7.1) | (5.6, 6.1) | (6, 6.5) | (5, 6)
-
 		ops := hb.Schedule(tc)
 		c.Assert(ops, HasLen, 0)
 	}
@@ -553,15 +549,11 @@ func (s *testHotReadRegionSchedulerSuite) TestWithPendingInfluence(c *C) {
 		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
 
 		c.Assert(op1.Cancel(), IsTrue)
-		// store byte rate (min, max): (6.5, 7.1) | 6.1 | 6 | (5, 5.5)
+		// store byte rate (min, max): (6.6, 7.1) | 6.1 | 6 | (5, 5.5)
 
 		op3 := hb.Schedule(tc)[0]
-		testutil.CheckTransferLeader(c, op3, operator.OpLeader, 1, 3)
-		// store byte rate (min, max): (6.1, 7.1) | 6.1 | (6, 6.5) | (5, 5.5)
-
-		op4 := hb.Schedule(tc)[0]
-		testutil.CheckTransferPeerWithLeaderTransfer(c, op4, operator.OpHotRegion, 2, 4)
-		// store byte rate (min, max): (6.1, 7.1) | (5.6, 6.1) | (6, 6.5) | (5, 6.0)
+		testutil.CheckTransferPeerWithLeaderTransfer(c, op3, operator.OpHotRegion, 1, 4)
+		// store byte rate (min, max): (6.1, 7.1) | 6.1 | 6 | (5, 6)
 
 		ops := hb.Schedule(tc)
 		c.Assert(ops, HasLen, 0)
