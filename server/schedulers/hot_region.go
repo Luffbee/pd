@@ -14,7 +14,6 @@
 package schedulers
 
 import (
-	"math"
 	"math/rand"
 	"sort"
 	"sync"
@@ -61,7 +60,7 @@ const (
 	HotWriteRegionType = "hot-write-region"
 
 	hotRegionLimitFactor    = 0.75
-	hotRegionScheduleFactor = 0.1
+	hotRegionScheduleFactor = 0.95
 
 	maxZombieDur time.Duration = statistics.StoreHeartBeatReportInterval * time.Second
 
@@ -636,8 +635,7 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 					continue
 				}
 			} else {
-				minDec := math.Max(bs.cur.srcPeerStat.GetBytesRate()*hotRegionScheduleFactor, storeLoadByteRateRankSize)
-				if srcLd.ByteRate-minDec < dstLd.ByteRate+bs.cur.srcPeerStat.GetBytesRate() {
+				if srcLd.ByteRate*hotRegionScheduleFactor < dstLd.ByteRate+bs.cur.srcPeerStat.GetBytesRate() {
 					continue
 				}
 			}
