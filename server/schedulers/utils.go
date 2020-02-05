@@ -34,7 +34,7 @@ const (
 	adjustRatio               float64 = 0.005
 	leaderTolerantSizeRatio   float64 = 5.0
 	minTolerantSizeRatio      float64 = 1.0
-	storeLoadByteRateRankSize         = 1 * 1024
+	storeLoadByteRateRankSize         = 100 * 1024
 )
 
 // ErrScheduleConfigNotExist the config is not correct.
