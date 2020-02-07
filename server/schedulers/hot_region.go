@@ -15,6 +15,7 @@ package schedulers
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 	"sync"
@@ -62,6 +63,7 @@ const (
 
 	hotRegionLimitFactor    = 0.75
 	hotRegionScheduleFactor = 0.95
+	byteRateRankStep        = 200 * 1024
 
 	maxZombieDur time.Duration = statistics.StoreHeartBeatReportInterval * time.Second
 
@@ -352,6 +354,9 @@ type balanceSolver struct {
 	opTy         opType
 
 	cur *solution
+
+	maxSrcByteRate float64
+	minDstByteRate float64
 }
 
 type solution struct {
@@ -372,6 +377,12 @@ func (bs *balanceSolver) init() {
 	}
 	for _, id := range getUnhealthyStores(bs.cluster) {
 		delete(bs.stLoadDetail, id)
+	}
+	bs.maxSrcByteRate = 0
+	bs.minDstByteRate = math.MaxFloat64
+	for _, detail := range bs.stLoadDetail {
+		bs.maxSrcByteRate = math.Max(bs.maxSrcByteRate, detail.LoadPred.min().ByteRate)
+		bs.minDstByteRate = math.Min(bs.minDstByteRate, detail.LoadPred.max().ByteRate)
 	}
 }
 
@@ -651,13 +662,13 @@ func (bs *balanceSolver) compareSrcStore(st1, st2 uint64) int {
 			lpCmp = sliceLPCmp(
 				minLPCmp(negLoadCmp(sliceLoadCmp(
 					countCmp,
-					byteRateRankCmp))),
-				diffCmp(byteRateRankCmp),
+					byteRateRankCmp(stepRank(bs.maxSrcByteRate))))),
+				diffCmp(byteRateRankCmp(stepRank(0))),
 			)
 		} else {
 			lpCmp = sliceLPCmp(
-				minLPCmp(negLoadCmp(byteRateRankCmp)),
-				diffCmp(byteRateRankCmp),
+				minLPCmp(negLoadCmp(byteRateRankCmp(stepRank(bs.maxSrcByteRate)))),
+				diffCmp(byteRateRankCmp(stepRank(0))),
 				minLPCmp(negLoadCmp(countCmp)),
 			)
 		}
@@ -678,13 +689,13 @@ func (bs *balanceSolver) compareDstStore(st1, st2 uint64) int {
 			lpCmp = sliceLPCmp(
 				maxLPCmp(sliceLoadCmp(
 					countCmp,
-					byteRateRankCmp)),
-				diffCmp(byteRateRankCmp),
+					byteRateRankCmp(stepRank(bs.minDstByteRate)))),
+				diffCmp(byteRateRankCmp(stepRank(0))),
 			)
 		} else {
 			lpCmp = sliceLPCmp(
-				maxLPCmp(byteRateRankCmp),
-				diffCmp(byteRateRankCmp),
+				maxLPCmp(byteRateRankCmp(stepRank(bs.minDstByteRate))),
+				diffCmp(byteRateRankCmp(stepRank(0))),
 				maxLPCmp(countCmp),
 			)
 		}
@@ -694,6 +705,12 @@ func (bs *balanceSolver) compareDstStore(st1, st2 uint64) int {
 		return lpCmp(lp1, lp2)
 	}
 	return 0
+}
+
+func stepRank(rk0 float64) func(float64) int64 {
+	return func(rate float64) int64 {
+		return int64((rate - rk0) / byteRateRankStep)
+	}
 }
 
 func (bs *balanceSolver) isReadyToBuild() bool {
