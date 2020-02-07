@@ -204,13 +204,13 @@ func summaryPendingInfluence(pendings map[*pendingInfluence]struct{}, f func(*op
 
 type storeLoad struct {
 	ByteRate float64
-	Count    int
+	Count    float64
 }
 
 func (load *storeLoad) ToLoadPred(infl Influence) *storeLoadPred {
 	future := *load
 	future.ByteRate += infl.ByteRate
-	future.Count += int(math.Round(infl.Count))
+	future.Count += infl.Count
 	return &storeLoadPred{
 		Current: *load,
 		Future:  future,
@@ -313,29 +313,15 @@ func diffCmp(ldCmp storeLoadCmp) storeLPCmp {
 func minLoad(a, b *storeLoad) *storeLoad {
 	return &storeLoad{
 		ByteRate: math.Min(a.ByteRate, b.ByteRate),
-		Count:    minInt(a.Count, b.Count),
+		Count:    math.Min(a.Count, b.Count),
 	}
 }
 
 func maxLoad(a, b *storeLoad) *storeLoad {
 	return &storeLoad{
 		ByteRate: math.Max(a.ByteRate, b.ByteRate),
-		Count:    maxInt(a.Count, b.Count),
+		Count:    math.Max(a.Count, b.Count),
 	}
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func maxInt(a, b int) int {
-	if a < b {
-		return b
-	}
-	return a
 }
 
 type storeLoadDetail struct {

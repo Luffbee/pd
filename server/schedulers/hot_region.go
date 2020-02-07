@@ -263,7 +263,7 @@ func summaryStoresLoad(
 		// Build store load prediction from current load and pending influence.
 		stLoadPred := (&storeLoad{
 			ByteRate: rate,
-			Count:    len(hotPeers),
+			Count:    float64(len(hotPeers)),
 		}).ToLoadPred(pendings[id])
 
 		// Construct store load info.
@@ -605,14 +605,16 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 		if !filter.Target(bs.cluster, store, filters) {
 			detail := bs.stLoadDetail[store.GetID()]
 			dstLd := detail.LoadPred.max()
+
+			srcVal, dstVal, change := srcLd.ByteRate, dstLd.ByteRate, bs.cur.srcPeerStat.GetBytesRate()
 			if bs.rwTy == write && bs.opTy == transferLeader {
 				if srcLd.Count-1 < dstLd.Count+1 {
 					continue
 				}
-			} else {
-				if srcLd.ByteRate*hotRegionScheduleFactor < dstLd.ByteRate+bs.cur.srcPeerStat.GetBytesRate() {
-					continue
-				}
+				srcVal, dstVal, change = srcLd.Count, dstLd.Count, 1
+			}
+			if srcVal*hotRegionScheduleFactor < dstVal+change {
+				continue
 			}
 			ret[store.GetID()] = detail
 		}
