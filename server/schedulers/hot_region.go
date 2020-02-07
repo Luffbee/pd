@@ -606,20 +606,32 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 			detail := bs.stLoadDetail[store.GetID()]
 			dstLd := detail.LoadPred.max()
 
-			srcVal, dstVal, change := srcLd.ByteRate, dstLd.ByteRate, bs.cur.srcPeerStat.GetBytesRate()
 			if bs.rwTy == write && bs.opTy == transferLeader {
-				if srcLd.Count-1 < dstLd.Count+1 {
+				if srcLd.Count <= dstLd.Count {
 					continue
 				}
-				srcVal, dstVal, change = srcLd.Count, dstLd.Count, 1
-			}
-			if srcVal*hotRegionScheduleFactor < dstVal+change {
+				if !isProgressive(
+					srcLd.ByteRate,
+					dstLd.ByteRate,
+					bs.cur.srcPeerStat.GetBytesRate(),
+					1.0) {
+					continue
+				}
+			} else if !isProgressive(
+				srcLd.ByteRate,
+				dstLd.ByteRate,
+				bs.cur.srcPeerStat.GetBytesRate(),
+				hotRegionScheduleFactor) {
 				continue
 			}
 			ret[store.GetID()] = detail
 		}
 	}
 	return ret
+}
+
+func isProgressive(srcVal, dstVal, change, factor float64) bool {
+	return srcVal*factor >= dstVal+change
 }
 
 // betterThan checks if `bs.cur` is a better solution than `old`.
