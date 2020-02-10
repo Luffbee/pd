@@ -63,7 +63,6 @@ const (
 
 	hotRegionLimitFactor    = 0.75
 	hotRegionScheduleFactor = 0.95
-	byteRateRankStep        = 200 * 1024
 
 	maxZombieDur time.Duration = statistics.StoreHeartBeatReportInterval * time.Second
 
@@ -355,8 +354,9 @@ type balanceSolver struct {
 
 	cur *solution
 
-	maxSrcByteRate float64
-	minDstByteRate float64
+	maxSrcByteRate   float64
+	minDstByteRate   float64
+	byteRateRankStep float64
 }
 
 type solution struct {
@@ -380,10 +380,13 @@ func (bs *balanceSolver) init() {
 	}
 	bs.maxSrcByteRate = 0
 	bs.minDstByteRate = math.MaxFloat64
+	maxCurByteRate := 0.0
 	for _, detail := range bs.stLoadDetail {
 		bs.maxSrcByteRate = math.Max(bs.maxSrcByteRate, detail.LoadPred.min().ByteRate)
 		bs.minDstByteRate = math.Min(bs.minDstByteRate, detail.LoadPred.max().ByteRate)
+		maxCurByteRate = math.Max(maxCurByteRate, detail.LoadPred.Current.ByteRate)
 	}
+	bs.byteRateRankStep = maxCurByteRate / 20
 }
 
 func getUnhealthyStores(cluster opt.Cluster) []uint64 {
@@ -676,13 +679,13 @@ func (bs *balanceSolver) compareSrcStore(st1, st2 uint64) int {
 			lpCmp = sliceLPCmp(
 				minLPCmp(negLoadCmp(sliceLoadCmp(
 					countCmp,
-					byteRateRankCmp(stepRank(bs.maxSrcByteRate))))),
-				diffCmp(byteRateRankCmp(stepRank(0))),
+					byteRateRankCmp(stepRank(bs.maxSrcByteRate, bs.byteRateRankStep))))),
+				diffCmp(byteRateRankCmp(stepRank(0, bs.byteRateRankStep))),
 			)
 		} else {
 			lpCmp = sliceLPCmp(
-				minLPCmp(negLoadCmp(byteRateRankCmp(stepRank(bs.maxSrcByteRate)))),
-				diffCmp(byteRateRankCmp(stepRank(0))),
+				minLPCmp(negLoadCmp(byteRateRankCmp(stepRank(bs.maxSrcByteRate, bs.byteRateRankStep)))),
+				diffCmp(byteRateRankCmp(stepRank(0, bs.byteRateRankStep))),
 				minLPCmp(negLoadCmp(countCmp)),
 			)
 		}
@@ -703,13 +706,13 @@ func (bs *balanceSolver) compareDstStore(st1, st2 uint64) int {
 			lpCmp = sliceLPCmp(
 				maxLPCmp(sliceLoadCmp(
 					countCmp,
-					byteRateRankCmp(stepRank(bs.minDstByteRate)))),
-				diffCmp(byteRateRankCmp(stepRank(0))),
+					byteRateRankCmp(stepRank(bs.minDstByteRate, bs.byteRateRankStep)))),
+				diffCmp(byteRateRankCmp(stepRank(0, bs.byteRateRankStep))),
 			)
 		} else {
 			lpCmp = sliceLPCmp(
-				maxLPCmp(byteRateRankCmp(stepRank(bs.minDstByteRate))),
-				diffCmp(byteRateRankCmp(stepRank(0))),
+				maxLPCmp(byteRateRankCmp(stepRank(bs.minDstByteRate, bs.byteRateRankStep))),
+				diffCmp(byteRateRankCmp(stepRank(0, bs.byteRateRankStep))),
 				maxLPCmp(countCmp),
 			)
 		}
@@ -721,9 +724,9 @@ func (bs *balanceSolver) compareDstStore(st1, st2 uint64) int {
 	return 0
 }
 
-func stepRank(rk0 float64) func(float64) int64 {
+func stepRank(rk0 float64, step float64) func(float64) int64 {
 	return func(rate float64) int64 {
-		return int64((rate - rk0) / byteRateRankStep)
+		return int64((rate - rk0) / step)
 	}
 }
 
