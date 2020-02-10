@@ -61,8 +61,7 @@ const (
 	// HotWriteRegionType is hot write region scheduler type.
 	HotWriteRegionType = "hot-write-region"
 
-	hotRegionLimitFactor    = 0.75
-	hotRegionScheduleFactor = 0.95
+	hotRegionLimitFactor = 0.75
 
 	maxPeerNum = 1000
 
@@ -641,34 +640,32 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 	for _, store := range candidates {
 		if !filter.Target(bs.cluster, store, filters) {
 			detail := bs.stLoadDetail[store.GetID()]
-			dstLd := detail.LoadPred.max()
 
-			if bs.rwTy == write && bs.opTy == transferLeader {
-				if srcLd.Count <= dstLd.Count {
-					continue
-				}
-				if !isProgressive(
-					srcLd.ByteRate,
-					dstLd.ByteRate,
-					bs.cur.srcPeerStat.GetBytesRate(),
-					1.0) {
-					continue
-				}
-			} else if !isProgressive(
-				srcLd.ByteRate,
-				dstLd.ByteRate,
-				bs.cur.srcPeerStat.GetBytesRate(),
-				hotRegionScheduleFactor) {
-				continue
+			if bs.isProgressive(srcLd, detail.LoadPred.max(), bs.cur.srcPeerStat) {
+				ret[store.GetID()] = detail
 			}
-			ret[store.GetID()] = detail
+
 		}
 	}
 	return ret
 }
 
-func isProgressive(srcVal, dstVal, change, factor float64) bool {
-	return srcVal*factor >= dstVal+change
+func (bs *balanceSolver) isProgressive(srcLd, dstLd *storeLoad, peer *statistics.HotPeerStat) bool {
+	if bs.rwTy == write && bs.opTy == transferLeader {
+		if srcLd.Count > dstLd.Count &&
+			srcLd.ByteRate >= dstLd.ByteRate+peer.GetBytesRate() &&
+			srcLd.KeyRate >= dstLd.KeyRate+peer.KeysRate {
+			return true
+		}
+	} else {
+		if srcLd.ByteRate*0.95 >= dstLd.ByteRate+peer.GetBytesRate() {
+			return true
+		} else if srcLd.ByteRate >= dstLd.ByteRate+peer.GetBytesRate() &&
+			srcLd.KeyRate*0.95 >= dstLd.KeyRate+peer.KeysRate {
+			return true
+		}
+	}
+	return false
 }
 
 // betterThan checks if `bs.cur` is a better solution than `old`.
