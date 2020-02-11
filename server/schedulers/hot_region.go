@@ -452,7 +452,7 @@ func (bs *balanceSolver) solve() []*operator.Operator {
 			for dstStoreID := range bs.filterDstStores() {
 				bs.cur.dstStoreID = dstStoreID
 
-				if bs.betterThan(best) {
+				if bs.isProgressive() && bs.betterThan(best) {
 					if newOps, newInfls := bs.buildOperators(); len(newOps) > 0 {
 						ops = newOps
 						infls = newInfls
@@ -635,22 +635,20 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*storeLoadDetail {
 		return nil
 	}
 
-	srcLd := bs.stLoadDetail[bs.cur.srcStoreID].LoadPred.min()
 	ret := make(map[uint64]*storeLoadDetail, len(candidates))
 	for _, store := range candidates {
 		if !filter.Target(bs.cluster, store, filters) {
-			detail := bs.stLoadDetail[store.GetID()]
-
-			if bs.isProgressive(srcLd, detail.LoadPred.max(), bs.cur.srcPeerStat) {
-				ret[store.GetID()] = detail
-			}
-
+			ret[store.GetID()] = bs.stLoadDetail[store.GetID()]
 		}
 	}
 	return ret
 }
 
-func (bs *balanceSolver) isProgressive(srcLd, dstLd *storeLoad, peer *statistics.HotPeerStat) bool {
+// isProgressive checks `bs.cur` is a progressive solution.
+func (bs *balanceSolver) isProgressive() bool {
+	srcLd := bs.stLoadDetail[bs.cur.srcStoreID].LoadPred.min()
+	dstLd := bs.stLoadDetail[bs.cur.dstStoreID].LoadPred.max()
+	peer := bs.cur.srcPeerStat
 	if bs.rwTy == write && bs.opTy == transferLeader {
 		if srcLd.Count > dstLd.Count &&
 			srcLd.ByteRate >= dstLd.ByteRate+peer.GetBytesRate() &&
