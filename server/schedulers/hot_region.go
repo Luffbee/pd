@@ -256,7 +256,7 @@ func summaryStoresLoad(
 			keySum := 0.0
 			for _, peer := range filterHotPeers(kind, minHotDegree, storeHotPeers[id]) {
 				byteSum += peer.GetBytesRate()
-				keySum += peer.KeysRate
+				keySum += peer.GetKeysRate()
 				hotPeers = append(hotPeers, peer.Clone())
 			}
 			// Use sum of hot peers to estimate leader-only byte rate.
@@ -538,7 +538,7 @@ func (bs *balanceSolver) getHotPeers() []*statistics.HotPeerStat {
 	keySort := make([]*statistics.HotPeerStat, len(ret))
 	copy(keySort, ret)
 	sort.Slice(keySort, func(i, j int) bool {
-		return keySort[i].KeysRate > keySort[j].KeysRate
+		return keySort[i].GetKeysRate() > keySort[j].GetKeysRate()
 	})
 
 	union := make(map[*statistics.HotPeerStat]struct{}, maxPeerNum)
@@ -680,14 +680,14 @@ func (bs *balanceSolver) isProgressive() bool {
 	if bs.rwTy == write && bs.opTy == transferLeader {
 		if srcLd.Count > dstLd.Count &&
 			srcLd.ByteRate >= dstLd.ByteRate+peer.GetBytesRate() &&
-			srcLd.KeyRate >= dstLd.KeyRate+peer.KeysRate {
+			srcLd.KeyRate >= dstLd.KeyRate+peer.GetKeysRate() {
 			return true
 		}
 	} else {
 		if srcLd.ByteRate*0.95 >= dstLd.ByteRate+peer.GetBytesRate() {
 			return true
 		} else if srcLd.ByteRate >= dstLd.ByteRate+peer.GetBytesRate() &&
-			srcLd.KeyRate*0.95 >= dstLd.KeyRate+peer.KeysRate {
+			srcLd.KeyRate*0.95 >= dstLd.KeyRate+peer.GetKeysRate() {
 			return true
 		}
 	}
@@ -716,7 +716,7 @@ func (bs *balanceSolver) betterThan(old *solution) bool {
 		// compare region
 
 		// prefer region with larger byte rate, to converge faster
-		curKeyRk, oldKeyRk := int64(bs.cur.srcPeerStat.KeysRate/10), int64(old.srcPeerStat.KeysRate/10)
+		curKeyRk, oldKeyRk := int64(bs.cur.srcPeerStat.GetKeysRate()/10), int64(old.srcPeerStat.GetKeysRate()/10)
 		if curKeyRk == oldKeyRk {
 			curByteRk, oldByteRk := int64(bs.cur.srcPeerStat.GetBytesRate()/100), int64(old.srcPeerStat.GetBytesRate()/100)
 			if curByteRk > oldByteRk {
@@ -730,9 +730,8 @@ func (bs *balanceSolver) betterThan(old *solution) bool {
 			srcCmpDst := int64((srcKeyRate - dstKeyRate) / (bs.rankStep.KeyRate))
 			if srcCmpDst > 0 {
 				return curKeyRk > oldKeyRk
-			} else {
-				return curKeyRk < oldKeyRk
 			}
+			return curKeyRk < oldKeyRk
 		}
 	}
 
@@ -868,7 +867,7 @@ func (bs *balanceSolver) buildOperators() ([]*operator.Operator, []Influence) {
 
 	infl := Influence{
 		ByteRate: bs.cur.srcPeerStat.GetBytesRate(),
-		KeyRate:  bs.cur.srcPeerStat.KeysRate,
+		KeyRate:  bs.cur.srcPeerStat.GetKeysRate(),
 		Count:    1,
 	}
 
