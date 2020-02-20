@@ -688,9 +688,9 @@ func (bs *balanceSolver) calcProgressiveRank() int64 {
 		}
 	} else {
 		keyDecRatio := (dstLd.KeyRate + peer.GetKeysRate()) / (srcLd.KeyRate + 1)
-		keyNotZero := peer.GetKeysRate() >= 10
+		keyNotZero := true //peer.GetKeysRate() >= 10
 		byteDecRatio := (dstLd.ByteRate + peer.GetBytesRate()) / (srcLd.ByteRate + 1)
-		byteNotZero := peer.GetBytesRate() >= 100
+		byteNotZero := true //peer.GetBytesRate() >= 100
 		switch {
 		case byteNotZero && byteDecRatio <= 0.95 && keyNotZero && keyDecRatio <= 0.95:
 			rank = -3
